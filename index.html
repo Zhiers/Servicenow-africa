@@ -513,9 +513,11 @@ async function loadHomePreview(){
 
 function artisanCardHTML(p){
   const initials=((p.first_name||'')[0]||'')+((p.last_name||'')[0]||'');
+  const skillsText=(p._skillNames&&p._skillNames.length>0)?p._skillNames.slice(0,2).join(', '):'No skills listed yet';
   return `<div class="artisan-card">
     <div class="artisan-avatar" style="background:${p.avatar_color}22;color:${p.avatar_color}">${initials.toUpperCase()}</div>
     <div class="artisan-skill">${p.first_name} ${p.last_name}</div>
+    <div class="artisan-meta" style="font-weight:600;color:var(--blue-600)">${skillsText}</div>
     <div class="artisan-meta">📍 ${p.location}</div>
     ${p.kyc_status==='verified'?'<span class="artisan-badge">🪪 ID Verified</span>':'<span class="artisan-badge-unverified">📍 Location confirmed</span>'}
     <button class="btn btn-sm btn-primary" style="width:100%;justify-content:center;margin-top:12px" onclick='event.stopPropagation();hireFromCard(${JSON.stringify(p).replace(/'/g,"&apos;")})'>Post a Job</button>
@@ -536,10 +538,18 @@ function renderMarketplace(list){
   const loc=(document.getElementById('locationInput').value||'').toLowerCase();
   let filtered=list;
   if(loc) filtered=filtered.filter(p=>(p.location||'').toLowerCase().includes(loc));
-  if(q) filtered=filtered.filter(p=>(p.first_name+' '+p.last_name+' '+(p.bio||'')).toLowerCase().includes(q));
+  if(currentFilter!=='all'){
+    filtered=filtered.filter(p=>(p._skillCategories||[]).includes(currentFilter));
+  }
+  if(q){
+    filtered=filtered.filter(p=>{
+      const haystack=(p.first_name+' '+p.last_name+' '+(p.bio||'')+' '+(p._skillNames||[]).join(' ')).toLowerCase();
+      return haystack.includes(q);
+    });
+  }
   const grid=document.getElementById('artisanGrid');
   if(filtered.length===0){
-    grid.innerHTML='<div class="empty-state" style="grid-column:1/-1">No artisans found yet. Try a different search, or be the first to sign up as an artisan in this category!</div>';
+    grid.innerHTML='<div class="empty-state" style="grid-column:1/-1">No artisans found yet. Try a different search or category, or be the first to sign up in this category!</div>';
   }else{
     grid.innerHTML=filtered.map(p=>artisanCardHTML(p)).join('');
   }
@@ -548,8 +558,36 @@ function renderMarketplace(list){
 
 async function filterArtisans(){
   if(marketplaceCache.length===0){
-    const{data}=await sb.from('profiles').select('*').eq('is_artisan',true);
-    marketplaceCache=data||[];
+    document.getElementById('resultCount').textContent='Loading artisans…';
+    const{data:profiles,error:profileErr}=await sb.from('profiles').select('*').eq('is_artisan',true);
+    if(profileErr){
+      document.getElementById('artisanGrid').innerHTML='<div class="empty-state">Error loading artisans: '+profileErr.message+'</div>';
+      return;
+    }
+    // For each artisan, fetch their skills + categories in one batched query
+    const ids=(profiles||[]).map(p=>p.id);
+    let skillsByProfile={};
+    if(ids.length>0){
+      const{data:askills,error:askillErr}=await sb.from('artisan_skills')
+        .select('profile_id, skills(name, category)')
+        .in('profile_id',ids);
+      if(!askillErr&&askills){
+        askills.forEach(row=>{
+          if(!skillsByProfile[row.profile_id]) skillsByProfile[row.profile_id]={names:[],cats:[]};
+          if(row.skills){
+            skillsByProfile[row.profile_id].names.push(row.skills.name);
+            if(!skillsByProfile[row.profile_id].cats.includes(row.skills.category)){
+              skillsByProfile[row.profile_id].cats.push(row.skills.category);
+            }
+          }
+        });
+      }
+    }
+    marketplaceCache=(profiles||[]).map(p=>({
+      ...p,
+      _skillNames:skillsByProfile[p.id]?skillsByProfile[p.id].names:[],
+      _skillCategories:skillsByProfile[p.id]?skillsByProfile[p.id].cats:[]
+    }));
   }
   renderMarketplace(marketplaceCache);
 }
