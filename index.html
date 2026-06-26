@@ -1148,13 +1148,16 @@ async function openJobDetail(job){
   badge.className='status-badge '+s.cls;
 
   const actions=document.getElementById('jdActions');
-  actions.innerHTML='';
+  actions.innerHTML='<div class="empty-state" style="padding:12px">Loading…</div>';
   const isCustomer=job.customer_id===currentUser.id;
   const isArtisan=job.artisan_id===currentUser.id;
   const isOpenForMe=job.status==='open'&&!isCustomer;
+  const isOpenForHirer=job.status==='open'&&isCustomer;
 
-  if(isOpenForMe){
-    actions.innerHTML=`<button class="btn btn-primary" onclick="acceptJob('${job.id}')">Accept This Job</button>`;
+  if(isOpenForHirer){
+    await renderApplicantsForHirer(job);
+  }else if(isOpenForMe){
+    await renderInterestUI(job);
   }else if(isCustomer&&job.status==='matched'){
     actions.innerHTML=`<button class="btn btn-primary" onclick="fundEscrow('${job.id}','${job.budget}')">🔒 Fund Escrow (Simulated)</button>`;
   }else if(isCustomer&&job.status==='in_escrow'){
@@ -1171,6 +1174,104 @@ async function openJobDetail(job){
   }
 
   openModal('jobDetailModal');
+}
+
+// Skill worker viewing an open job: show interest form, or their existing application status
+async function renderInterestUI(job){
+  const actions=document.getElementById('jdActions');
+  const{data:existing}=await sb.from('job_applications').select('*').eq('job_id',job.id).eq('applicant_id',currentUser.id).maybeSingle();
+
+  if(existing){
+    const statusText=existing.status==='pending'?'⏳ Your interest has been sent — waiting on the hirer.':
+                      existing.status==='selected'?'🎉 You were selected for this job!':
+                      '😕 The hirer selected someone else for this job.';
+    actions.innerHTML=`<div style="font-size:13px;color:var(--gray-600)">${statusText}</div>`;
+    return;
+  }
+
+  actions.innerHTML=`
+    <div style="width:100%">
+      <textarea class="form-textarea" id="jdInterestNote" rows="2" style="resize:vertical;margin-bottom:10px" placeholder="Optional note — your rate, availability, relevant experience..."></textarea>
+      <button class="btn btn-primary" onclick="expressInterest('${job.id}')" id="jdInterestBtn">Express Interest</button>
+    </div>`;
+}
+
+async function expressInterest(jobId){
+  const note=document.getElementById('jdInterestNote').value.trim();
+  const btn=document.getElementById('jdInterestBtn');
+  btn.disabled=true;
+  btn.innerHTML='<span class="spinner"></span> Sending...';
+
+  const{error}=await sb.from('job_applications').insert({
+    job_id:jobId,applicant_id:currentUser.id,note:note||null
+  });
+
+  btn.disabled=false;
+  btn.textContent='Express Interest';
+
+  if(error){
+    document.getElementById('jdError').textContent=error.message.includes('duplicate')?'You already expressed interest in this job.':'Could not send: '+error.message;
+    document.getElementById('jdError').classList.add('show');
+    return;
+  }
+  closeModal('jobDetailModal');
+  showToast('✅ Interest sent! The hirer will review and select a skill worker.');
+  loadJobsTab();
+}
+
+// Hirer viewing their own open job: list applicants, let them select one
+async function renderApplicantsForHirer(job){
+  const actions=document.getElementById('jdActions');
+  const{data:apps,error}=await sb.from('job_applications')
+    .select('*, applicant:applicant_id(first_name,last_name,location,avatar_color,kyc_status,id)')
+    .eq('job_id',job.id)
+    .order('created_at',{ascending:true});
+
+  if(error){
+    actions.innerHTML='<div class="error-text show">Could not load applicants: '+error.message+'</div>';
+    return;
+  }
+  if(!apps||apps.length===0){
+    actions.innerHTML='<div style="font-size:13px;color:var(--gray-500)">No skill workers have expressed interest yet. Check back soon, or share this job\\'s category with your network.</div>';
+    return;
+  }
+
+  actions.innerHTML=`<div style="width:100%">
+    <div style="font-size:13px;font-weight:700;color:var(--gray-700);margin-bottom:12px">${apps.length} skill worker${apps.length>1?'s':''} interested</div>
+    ${apps.map(a=>{
+      const p=a.applicant;
+      const initials=((p.first_name||'')[0]||'')+((p.last_name||'')[0]||'');
+      return `<div style="border:1px solid var(--gray-200);border-radius:var(--radius-lg);padding:14px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div style="display:flex;gap:10px">
+            <div class="party-avatar" style="width:36px;height:36px;font-size:13px;background:${p.avatar_color}22;color:${p.avatar_color}">${initials.toUpperCase()}</div>
+            <div>
+              <div style="font-size:14px;font-weight:700">${p.first_name} ${p.last_name}</div>
+              <div style="font-size:12px;color:var(--gray-500)">📍 ${p.location} ${p.kyc_status==='verified'?'· 🪪 Verified':''}</div>
+            </div>
+          </div>
+          ${a.status==='selected'?'<span class="status-badge status-active">✓ Selected</span>':a.status==='rejected'?'<span class="status-badge status-completed">Not selected</span>':''}
+        </div>
+        ${a.note?`<div style="font-size:13px;color:var(--gray-600);margin-top:10px;background:var(--gray-50);padding:10px;border-radius:var(--radius-md)">"${a.note}"</div>`:''}
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="btn btn-sm btn-ghost" onclick='event.stopPropagation();viewPortfolio(${JSON.stringify(p).replace(/'/g,"&apos;")})'>🖼️ View Portfolio</button>
+          ${a.status==='pending'?`<button class="btn btn-sm btn-primary" onclick="selectApplicant('${job.id}','${a.id}','${p.id}')">Select</button>`:''}
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+async function selectApplicant(jobId,applicationId,applicantId){
+  const{error:jobErr}=await sb.from('jobs').update({artisan_id:applicantId,status:'matched'}).eq('id',jobId);
+  if(jobErr){showToast('Could not select: '+jobErr.message,true);return}
+
+  await sb.from('job_applications').update({status:'selected'}).eq('id',applicationId);
+  await sb.from('job_applications').update({status:'rejected'}).eq('job_id',jobId).neq('id',applicationId);
+
+  closeModal('jobDetailModal');
+  showToast('✅ Skill worker selected! Fund escrow to get started.');
+  loadJobsTab();
 }
 
 async function acceptJob(jobId){
