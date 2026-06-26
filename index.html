@@ -139,6 +139,11 @@ nav{position:sticky;top:0;z-index:100;background:rgba(255,255,255,.95);backdrop-
 @keyframes spin{to{transform:rotate(360deg)}}
 .skip-link{display:block;text-align:center;margin-top:14px;font-size:13px;color:var(--gray-500);cursor:pointer;text-decoration:underline}
 .empty-state{padding:60px;text-align:center;color:var(--gray-400)}
+.pf-thumb{position:relative;width:64px;height:64px;border-radius:var(--radius-md);overflow:hidden;background:var(--gray-100)}
+.pf-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.pf-thumb-remove{position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.6);color:white;border:none;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.pf-thumb-loading{display:flex;align-items:center;justify-content:center;width:100%;height:100%}
+.pf-thumb-loading .spinner{border-top-color:var(--blue-600);border-color:rgba(0,0,0,.1)}
 footer{background:var(--gray-900);color:rgba(255,255,255,.5);padding:40px 2rem;display:flex;justify-content:space-between;align-items:center;font-size:13px;flex-wrap:wrap;gap:10px}
 footer .brand{color:white;font-weight:700;font-family:'Plus Jakarta Sans',sans-serif}
 </style>
@@ -152,7 +157,7 @@ footer .brand{color:white;font-weight:700;font-family:'Plus Jakarta Sans',sans-s
   </div>
   <ul class="nav-links">
     <li><a href="#" onclick="goTo('home');return false">Home</a></li>
-    <li><a href="#" onclick="goTo('marketplace');return false">Find Artisans</a></li>
+    <li><a href="#" onclick="goTo('marketplace');return false">Find Skill Workers</a></li>
   </ul>
   <div class="nav-actions" id="navActions">
     <button class="btn btn-ghost" onclick="openModal('loginModal')">Log in</button>
@@ -163,16 +168,16 @@ footer .brand{color:white;font-weight:700;font-family:'Plus Jakarta Sans',sans-s
 <div id="screen-home" class="screen active">
   <section class="hero">
     <div class="hero-tag"><span class="hero-tag-dot"></span>Africa's Skilled Economy Platform — Live Database</div>
-    <h1>Find <em>Verified Artisans.</em><br>Pay with Confidence.</h1>
+    <h1>Find <em>Verified Skill Workers.</em><br>Pay with Confidence.</h1>
     <p>ServiceNow connects you to skilled professionals across Nigeria — with escrow-protected payments so you only pay when the job is done right.</p>
     <div class="hero-cta">
-      <button class="btn btn-gold btn-lg" onclick="goTo('marketplace')">Find an Artisan</button>
-      <button class="btn btn-outline-white btn-lg" onclick="openModal('registerModal')">List My Skills</button>
+      <button class="btn btn-gold btn-lg" onclick="goTo('marketplace')">Hire a Skill Worker</button>
+      <button class="btn btn-outline-white btn-lg" onclick="openModal('registerModal')">Join as Skill Worker</button>
     </div>
     <div class="banner" id="connectionBanner">Connecting to database…</div>
   </section>
   <div class="section">
-    <h2>Real artisans, real data</h2>
+    <h2>Real skill workers, real data</h2>
     <p class="section-sub">Every signup below writes directly into your Supabase profiles table.</p>
     <div id="homePreviewGrid" class="artisans-grid"></div>
   </div>
@@ -185,7 +190,7 @@ footer .brand{color:white;font-weight:700;font-family:'Plus Jakarta Sans',sans-s
 <div id="screen-marketplace" class="screen">
   <div class="search-section">
     <div class="search-inner">
-      <h2 style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:1.5rem;margin-bottom:20px">Find skilled artisans near you</h2>
+      <h2 style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:1.5rem;margin-bottom:20px">Find skilled workers near you</h2>
       <div class="search-bar">
         <span>🔍</span>
         <input class="search-input" id="searchInput" placeholder="Search by skill — e.g. Tailor, Electrician, Plumber..." oninput="filterArtisans()">
@@ -207,7 +212,7 @@ footer .brand{color:white;font-weight:700;font-family:'Plus Jakarta Sans',sans-s
     </div>
   </div>
   <div style="max-width:1100px;margin:0 auto;padding:40px 2rem">
-    <p id="resultCount" style="font-size:14px;color:var(--gray-500);margin-bottom:20px">Loading artisans from database…</p>
+    <p id="resultCount" style="font-size:14px;color:var(--gray-500);margin-bottom:20px">Loading skill workers from database…</p>
     <div class="artisans-grid" id="artisanGrid"></div>
   </div>
 </div>
@@ -228,6 +233,7 @@ footer .brand{color:white;font-weight:700;font-family:'Plus Jakarta Sans',sans-s
         <div class="sidebar-label">Main</div>
         <div class="sidebar-item active" onclick="setDashTab('overview',this)">📊 Overview</div>
         <div class="sidebar-item" onclick="setDashTab('jobs',this)">💼 Jobs <span class="sidebar-badge-warn" id="openJobsBadge" style="display:none">0</span></div>
+        <div class="sidebar-item" onclick="setDashTab('portfolio',this)">🖼️ Portfolio</div>
         <div class="sidebar-item" onclick="setDashTab('profile',this)">👤 My Profile</div>
         <div class="sidebar-item" onclick="setDashTab('kyc',this)">🪪 KYC <span class="sidebar-badge-warn">Optional</span></div>
       </div>
@@ -273,7 +279,7 @@ footer .brand{color:white;font-weight:700;font-family:'Plus Jakarta Sans',sans-s
         </div>
 
         <div class="jobs-section" style="margin-bottom:24px">
-          <div class="jobs-header"><h3>Jobs Assigned to Me (as artisan)</h3></div>
+          <div class="jobs-header"><h3>Jobs Assigned to Me (as skill worker)</h3></div>
           <div id="myAssignedJobs" style="padding:0"></div>
         </div>
 
@@ -297,6 +303,14 @@ footer .brand{color:white;font-weight:700;font-family:'Plus Jakarta Sans',sans-s
             <button class="btn btn-primary" onclick="saveProfile()" id="saveProfileBtn">Save Changes</button>
           </div>
         </div>
+      </div>
+      <div id="dash-portfolio" class="dash-tab" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
+          <div class="dash-title">Portfolio</div>
+          <button class="btn btn-primary" onclick="openPortfolioModal()">+ Add Item</button>
+        </div>
+        <p style="font-size:13px;color:var(--gray-500);margin-bottom:24px">Show off your past work — hirers see this on your public profile.</p>
+        <div id="portfolioGrid" class="artisans-grid"></div>
       </div>
       <div id="dash-kyc" class="dash-tab" style="display:none">
         <div class="dash-title" style="margin-bottom:24px">KYC Status</div>
@@ -335,14 +349,10 @@ footer .brand{color:white;font-weight:700;font-family:'Plus Jakarta Sans',sans-s
 <div class="modal-overlay" id="registerModal">
   <div class="modal">
     <div class="modal-header">
-      <div><div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:1.3rem;font-weight:800">Create your account</div><div style="font-size:13px;color:var(--gray-500)">Phone & location required, everything else optional</div></div>
+      <div><div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:1.3rem;font-weight:800">Create your account</div><div style="font-size:13px;color:var(--gray-500)">Hire skill workers, or list your own skills — every account can do both</div></div>
       <button class="modal-close" onclick="closeModal('registerModal')">✕</button>
     </div>
     <div class="modal-body">
-      <div class="role-cards" style="margin-bottom:20px">
-        <div class="role-card selected" id="regRoleArtisan" onclick="selectRegRole('artisan')" style="padding:18px 14px"><div class="role-card-icon" style="font-size:24px">🛠️</div><h3 style="font-size:14px;font-weight:700">List My Skills</h3></div>
-        <div class="role-card" id="regRoleCustomer" onclick="selectRegRole('customer')" style="padding:18px 14px"><div class="role-card-icon" style="font-size:24px">👤</div><h3 style="font-size:14px;font-weight:700">Hire Artisans</h3></div>
-      </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">First Name <span>*</span></label><input class="form-input" id="regFirstName"></div>
         <div class="form-group"><label class="form-label">Last Name <span>*</span></label><input class="form-input" id="regLastName"></div>
@@ -418,6 +428,46 @@ footer .brand{color:white;font-weight:700;font-family:'Plus Jakarta Sans',sans-s
   </div>
 </div>
 
+<div class="modal-overlay" id="portfolioModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div><div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:1.3rem;font-weight:800">Add Portfolio Item</div><div style="font-size:13px;color:var(--gray-500)">Show off a past job with photos</div></div>
+      <button class="modal-close" onclick="closeModal('portfolioModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label">Title <span>*</span></label><input class="form-input" id="pfTitle" placeholder="e.g. Master bedroom makeover"></div>
+      <div class="form-group"><label class="form-label">Description <span class="optional-tag">optional</span></label><textarea class="form-textarea" id="pfDescription" rows="2" style="resize:vertical" placeholder="A line about the job"></textarea></div>
+      <div class="form-group">
+        <label class="form-label">Photos <span>*</span></label>
+        <div class="upload-area" id="pfUploadArea" onclick="document.getElementById('pfFileInput').click()">
+          <div class="upload-icon">📷</div>
+          <div class="upload-text"><strong>Click to choose photos</strong> from your device</div>
+          <div style="font-size:12px;color:var(--gray-400);margin-top:6px">JPG, PNG · Multiple allowed</div>
+        </div>
+        <input type="file" id="pfFileInput" accept="image/*" multiple style="display:none" onchange="handlePortfolioFiles(this.files)">
+        <div id="pfThumbs" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"></div>
+      </div>
+      <div class="error-text" id="pfError"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('portfolioModal')">Cancel</button>
+      <button class="btn btn-primary" style="flex:1;justify-content:center" onclick="submitPortfolioItem()" id="pfSubmitBtn">Add to Portfolio</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="viewPortfolioModal">
+  <div class="modal" style="max-width:700px">
+    <div class="modal-header">
+      <div><div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:1.3rem;font-weight:800" id="vpName">Portfolio</div></div>
+      <button class="modal-close" onclick="closeModal('viewPortfolioModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="vpGrid" class="artisans-grid"></div>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"><span id="toastMsg">Action completed</span></div>
 
 <script>
@@ -441,6 +491,10 @@ const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{
   }
 });
 
+const CLOUDINARY_CLOUD_NAME='df9a5xzc0';
+const CLOUDINARY_UPLOAD_PRESET='servicenow_unsigned';
+const CLOUDINARY_UPLOAD_URL=`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
+
 const CATEGORIES={
   fabrics:'🎨 Fabrics & Art',construction:'🏗️ Construction',repairs:'🔧 Repairs',
   beauty:'💇 Beauty & Personal Care',food:'🍳 Food & Catering',agriculture:'🌿 Agriculture & Craft',logistics:'📦 Logistics & Support'
@@ -450,7 +504,6 @@ let currentCat='fabrics';
 let selectedSkills=new Set();
 let currentUser=null;
 let currentProfile=null;
-let regRole='artisan';
 let currentFilter='all';
 let marketplaceCache=[];
 
@@ -505,7 +558,7 @@ async function loadHomePreview(){
   const{data,error}=await sb.from('profiles').select('*').eq('is_artisan',true).limit(4);
   const grid=document.getElementById('homePreviewGrid');
   if(error||!data||data.length===0){
-    grid.innerHTML='<div class="empty-state" style="grid-column:1/-1">No artisans yet — be the first to sign up!</div>';
+    grid.innerHTML='<div class="empty-state" style="grid-column:1/-1">No skill workers yet — be the first to sign up!</div>';
     return;
   }
   grid.innerHTML=data.map(p=>artisanCardHTML(p)).join('');
@@ -520,8 +573,18 @@ function artisanCardHTML(p){
     <div class="artisan-meta" style="font-weight:600;color:var(--blue-600)">${skillsText}</div>
     <div class="artisan-meta">📍 ${p.location}</div>
     ${p.kyc_status==='verified'?'<span class="artisan-badge">🪪 ID Verified</span>':'<span class="artisan-badge-unverified">📍 Location confirmed</span>'}
-    <button class="btn btn-sm btn-primary" style="width:100%;justify-content:center;margin-top:12px" onclick='event.stopPropagation();hireFromCard(${JSON.stringify(p).replace(/'/g,"&apos;")})'>Post a Job</button>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-sm btn-ghost" style="flex:1;justify-content:center" onclick='event.stopPropagation();viewPortfolio(${JSON.stringify(p).replace(/'/g,"&apos;")})'>🖼️ Portfolio</button>
+      <button class="btn btn-sm btn-primary" style="flex:1;justify-content:center" onclick='event.stopPropagation();hireFromCard(${JSON.stringify(p).replace(/'/g,"&apos;")})'>Post a Job</button>
+    </div>
   </div>`;
+}
+
+function viewPortfolio(profile){
+  document.getElementById('vpName').textContent=profile.first_name+"'s Portfolio";
+  document.getElementById('vpGrid').innerHTML='<div class="empty-state" style="grid-column:1/-1">Loading…</div>';
+  openModal('viewPortfolioModal');
+  loadPublicPortfolio(profile.id,'vpGrid');
 }
 
 function hireFromCard(profile){
@@ -549,16 +612,16 @@ function renderMarketplace(list){
   }
   const grid=document.getElementById('artisanGrid');
   if(filtered.length===0){
-    grid.innerHTML='<div class="empty-state" style="grid-column:1/-1">No artisans found yet. Try a different search or category, or be the first to sign up in this category!</div>';
+    grid.innerHTML='<div class="empty-state" style="grid-column:1/-1">No skill workers found yet. Try a different search or category, or be the first to sign up in this category!</div>';
   }else{
     grid.innerHTML=filtered.map(p=>artisanCardHTML(p)).join('');
   }
-  document.getElementById('resultCount').textContent=`Showing ${filtered.length} artisans`;
+  document.getElementById('resultCount').textContent=`Showing ${filtered.length} skill workers`;
 }
 
 async function filterArtisans(){
   if(marketplaceCache.length===0){
-    document.getElementById('resultCount').textContent='Loading artisans…';
+    document.getElementById('resultCount').textContent='Loading skill workers…';
     const{data:profiles,error:profileErr}=await sb.from('profiles').select('*').eq('is_artisan',true);
     if(profileErr){
       document.getElementById('artisanGrid').innerHTML='<div class="empty-state">Error loading artisans: '+profileErr.message+'</div>';
@@ -597,12 +660,6 @@ function setFilter(el,cat){
   el.classList.add('active');
   currentFilter=cat;
   filterArtisans();
-}
-
-function selectRegRole(role){
-  regRole=role;
-  document.getElementById('regRoleArtisan').classList.toggle('selected',role==='artisan');
-  document.getElementById('regRoleCustomer').classList.toggle('selected',role==='customer');
 }
 
 async function doRegister(){
@@ -647,8 +704,8 @@ async function doRegister(){
     last_name:lastName,
     phone:phone,
     location:location,
-    is_artisan:regRole==='artisan',
-    is_customer:regRole==='customer'||true,
+    is_artisan:true,
+    is_customer:true,
     avatar_color:['#185FA5','#1D9E75','#F5A623','#D85A30','#534AB7'][Math.floor(Math.random()*5)]
   });
 
@@ -664,14 +721,8 @@ async function doRegister(){
   currentUser=signUpData.user;
   closeModal('registerModal');
   showToast('🎉 Account created! Welcome to ServiceNow.');
-
-  if(regRole==='artisan'){
-    goTo('onboarding');
-    renderOnboardSkills();
-  }else{
-    await loadDashboardProfile();
-    goTo('dashboard');
-  }
+  goTo('onboarding');
+  renderOnboardSkills();
 }
 
 async function doLogin(){
@@ -798,11 +849,162 @@ function setDashTab(tab,el){
   document.querySelectorAll('.sidebar-item').forEach(i=>i.classList.remove('active'));
   el.classList.add('active');
   if(tab==='jobs') loadJobsTab();
+  if(tab==='portfolio') loadMyPortfolio();
 }
 function setDashTabByName(tab){
   document.querySelectorAll('.dash-tab').forEach(t=>t.style.display='none');
   document.getElementById('dash-'+tab).style.display='block';
   if(tab==='jobs') loadJobsTab();
+  if(tab==='portfolio') loadMyPortfolio();
+}
+
+// ===================== PORTFOLIO =====================
+
+let pfUploadedUrls=[]; // successfully uploaded Cloudinary URLs for the item being created
+let pfUploadingCount=0;
+
+function openPortfolioModal(){
+  document.getElementById('pfTitle').value='';
+  document.getElementById('pfDescription').value='';
+  document.getElementById('pfThumbs').innerHTML='';
+  document.getElementById('pfFileInput').value='';
+  document.getElementById('pfError').classList.remove('show');
+  pfUploadedUrls=[];
+  pfUploadingCount=0;
+  openModal('portfolioModal');
+}
+
+async function handlePortfolioFiles(fileList){
+  const files=Array.from(fileList);
+  if(files.length===0) return;
+
+  for(const file of files){
+    const thumbId='pfthumb_'+Math.random().toString(36).slice(2);
+    const thumbsEl=document.getElementById('pfThumbs');
+    const wrap=document.createElement('div');
+    wrap.className='pf-thumb';
+    wrap.id=thumbId;
+    wrap.innerHTML='<div class="pf-thumb-loading"><span class="spinner"></span></div>';
+    thumbsEl.appendChild(wrap);
+
+    pfUploadingCount++;
+    try{
+      const url=await uploadToCloudinary(file);
+      pfUploadedUrls.push(url);
+      const thumbEl=document.getElementById(thumbId);
+      if(thumbEl){
+        thumbEl.innerHTML=`<img src="${url}"><button class="pf-thumb-remove" onclick="removePfThumb('${thumbId}','${url}')">✕</button>`;
+      }
+    }catch(e){
+      const thumbEl=document.getElementById(thumbId);
+      if(thumbEl) thumbEl.remove();
+      showToast('Upload failed for '+file.name+': '+e.message,true);
+    }finally{
+      pfUploadingCount--;
+    }
+  }
+}
+
+function removePfThumb(thumbId,url){
+  pfUploadedUrls=pfUploadedUrls.filter(u=>u!==url);
+  const el=document.getElementById(thumbId);
+  if(el) el.remove();
+}
+
+async function uploadToCloudinary(file){
+  const formData=new FormData();
+  formData.append('file',file);
+  formData.append('upload_preset',CLOUDINARY_UPLOAD_PRESET);
+
+  const res=await fetch(CLOUDINARY_UPLOAD_URL,{method:'POST',body:formData});
+  const data=await res.json();
+  if(!res.ok||!data.secure_url){
+    throw new Error(data.error?data.error.message:'Upload failed');
+  }
+  return data.secure_url;
+}
+
+async function submitPortfolioItem(){
+  const title=document.getElementById('pfTitle').value.trim();
+  const description=document.getElementById('pfDescription').value.trim();
+  const errEl=document.getElementById('pfError');
+  errEl.classList.remove('show');
+
+  if(pfUploadingCount>0){
+    errEl.textContent='Please wait for photos to finish uploading.';
+    errEl.classList.add('show');
+    return;
+  }
+
+  if(!title||pfUploadedUrls.length===0){
+    errEl.textContent='Title and at least one photo are required.';
+    errEl.classList.add('show');
+    return;
+  }
+
+  const btn=document.getElementById('pfSubmitBtn');
+  btn.disabled=true;
+  btn.innerHTML='<span class="spinner"></span> Saving...';
+
+  const{error}=await sb.from('portfolio_items').insert({
+    profile_id:currentUser.id,title,description,image_urls:pfUploadedUrls
+  });
+
+  btn.disabled=false;
+  btn.textContent='Add to Portfolio';
+
+  if(error){
+    errEl.textContent='Could not save: '+error.message;
+    errEl.classList.add('show');
+    return;
+  }
+
+  closeModal('portfolioModal');
+  showToast('🖼️ Added to your portfolio');
+  loadMyPortfolio();
+}
+
+async function loadMyPortfolio(){
+  if(!currentUser) return;
+  const{data,error}=await sb.from('portfolio_items').select('*').eq('profile_id',currentUser.id).order('created_at',{ascending:false});
+  const grid=document.getElementById('portfolioGrid');
+  if(error){grid.innerHTML='<div class="empty-state">Error: '+error.message+'</div>';return}
+  if(!data||data.length===0){
+    grid.innerHTML='<div class="empty-state" style="grid-column:1/-1">No portfolio items yet. Add your first one to show hirers your work.</div>';
+    return;
+  }
+  grid.innerHTML=data.map(item=>portfolioCardHTML(item,true)).join('');
+}
+
+function portfolioCardHTML(item,ownView){
+  const img=(item.image_urls&&item.image_urls[0])?item.image_urls[0]:'';
+  const extraCount=item.image_urls?item.image_urls.length-1:0;
+  return `<div class="artisan-card" style="cursor:default;padding:0;overflow:hidden">
+    ${img?`<img src="${img}" style="width:100%;height:140px;object-fit:cover;display:block" onerror="this.style.display='none'">`:'<div style="height:140px;background:var(--gray-100)"></div>'}
+    <div style="padding:16px">
+      <div class="artisan-skill">${item.title}</div>
+      ${item.description?`<div class="artisan-meta" style="margin-top:4px">${item.description}</div>`:''}
+      ${extraCount>0?`<div class="artisan-meta" style="margin-top:6px">+${extraCount} more photo${extraCount>1?'s':''}</div>`:''}
+      ${ownView?`<button class="btn btn-sm btn-ghost" style="width:100%;justify-content:center;margin-top:12px" onclick="deletePortfolioItem('${item.id}')">Remove</button>`:''}
+    </div>
+  </div>`;
+}
+
+async function deletePortfolioItem(id){
+  const{error}=await sb.from('portfolio_items').delete().eq('id',id);
+  if(error){showToast('Could not remove: '+error.message,true);return}
+  showToast('Removed from portfolio');
+  loadMyPortfolio();
+}
+
+async function loadPublicPortfolio(profileId,containerId){
+  const{data,error}=await sb.from('portfolio_items').select('*').eq('profile_id',profileId).order('created_at',{ascending:false});
+  const el=document.getElementById(containerId);
+  if(error||!data||data.length===0){
+    el.innerHTML='<div class="empty-state" style="grid-column:1/-1;padding:24px">No portfolio items yet.</div>';
+    return;
+  }
+  el.innerHTML=data.map(item=>portfolioCardHTML(item,false)).join('');
 }
 
 // ===================== JOBS & ESCROW =====================
@@ -821,7 +1023,7 @@ function openPostJobModal(artisanProfile){
     document.getElementById('postJobSub').textContent='This job will go directly to them';
   }else{
     document.getElementById('postJobTitle').textContent='Post an Open Job';
-    document.getElementById('postJobSub').textContent='Any matching artisan can accept this';
+    document.getElementById('postJobSub').textContent='Any matching skill worker can accept this';
   }
   openModal('postJobModal');
 }
