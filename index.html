@@ -144,6 +144,19 @@ nav{position:sticky;top:0;z-index:100;background:rgba(255,255,255,.95);backdrop-
 .pf-thumb-remove{position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.6);color:white;border:none;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .pf-thumb-loading{display:flex;align-items:center;justify-content:center;width:100%;height:100%}
 .pf-thumb-loading .spinner{border-top-color:var(--blue-600);border-color:rgba(0,0,0,.1)}
+.jd-pipeline{display:flex;align-items:center;gap:0}
+.jd-pipe-step{flex:1;text-align:center;position:relative}
+.jd-pipe-dot{width:22px;height:22px;border-radius:50%;margin:0 auto 6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;background:var(--gray-200);color:var(--gray-500)}
+.jd-pipe-step.done .jd-pipe-dot{background:var(--teal);color:white}
+.jd-pipe-step.active .jd-pipe-dot{background:var(--blue-600);color:white}
+.jd-pipe-step.cancelled .jd-pipe-dot{background:var(--coral);color:white}
+.jd-pipe-label{font-size:10px;color:var(--gray-500);font-weight:600;text-transform:uppercase;letter-spacing:.3px}
+.jd-pipe-step.done .jd-pipe-label,.jd-pipe-step.active .jd-pipe-label{color:var(--gray-800)}
+.jd-pipe-line{position:absolute;top:11px;left:-50%;width:100%;height:2px;background:var(--gray-200);z-index:-1}
+.jd-pipe-step.done .jd-pipe-line{background:var(--teal)}
+.jd-pipe-step:first-child .jd-pipe-line{display:none}
+.jd-photo-thumb{width:72px;height:72px;border-radius:var(--radius-md);overflow:hidden;cursor:pointer;flex-shrink:0}
+.jd-photo-thumb img{width:100%;height:100%;object-fit:cover;display:block}
 footer{background:var(--gray-900);color:rgba(255,255,255,.5);padding:40px 2rem;display:flex;justify-content:space-between;align-items:center;font-size:13px;flex-wrap:wrap;gap:10px}
 footer .brand{color:white;font-weight:700;font-family:'Plus Jakarta Sans',sans-serif}
 </style>
@@ -269,22 +282,26 @@ footer .brand{color:white;font-weight:700;font-family:'Plus Jakarta Sans',sans-s
         </div>
       </div>
       <div id="dash-jobs" class="dash-tab" style="display:none">
-        <div class="dash-title" style="margin-bottom:8px">Jobs</div>
-        <p style="font-size:13px;color:var(--gray-500);margin-bottom:24px">Jobs you've posted, jobs assigned to you, and open jobs you can accept.</p>
-        <div style="margin-bottom:20px"><button class="btn btn-primary" onclick="openPostJobModal(null)">+ Post a Job</button></div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;flex-wrap:wrap;gap:12px">
+          <div>
+            <div class="dash-title" style="margin-bottom:4px">Jobs</div>
+            <p style="font-size:13px;color:var(--gray-500)">Track jobs you've posted, jobs you're hired for, and open jobs to apply to.</p>
+          </div>
+          <button class="btn btn-primary" onclick="openPostJobModal(null)">+ Post a Job</button>
+        </div>
 
-        <div class="jobs-section" style="margin-bottom:24px">
-          <div class="jobs-header"><h3>My Posted Jobs (as customer)</h3></div>
+        <div class="jobs-section" style="margin-bottom:20px">
+          <div class="jobs-header"><h3>📤 Jobs I Posted <span id="countPosted" style="color:var(--gray-400);font-weight:500"></span></h3></div>
           <div id="myPostedJobs" style="padding:0"></div>
         </div>
 
-        <div class="jobs-section" style="margin-bottom:24px">
-          <div class="jobs-header"><h3>Jobs Assigned to Me (as skill worker)</h3></div>
+        <div class="jobs-section" style="margin-bottom:20px">
+          <div class="jobs-header"><h3>🛠️ Jobs I'm Hired For <span id="countAssigned" style="color:var(--gray-400);font-weight:500"></span></h3></div>
           <div id="myAssignedJobs" style="padding:0"></div>
         </div>
 
         <div class="jobs-section">
-          <div class="jobs-header"><h3>Open Jobs Near You</h3></div>
+          <div class="jobs-header"><h3>🔍 Open Jobs — Apply Now <span id="countOpen" style="color:var(--gray-400);font-weight:500"></span></h3></div>
           <div id="openJobsList" style="padding:0"></div>
         </div>
       </div>
@@ -394,6 +411,15 @@ footer .brand{color:white;font-weight:700;font-family:'Plus Jakarta Sans',sans-s
         <div class="form-group"><label class="form-label">Budget (₦) <span>*</span></label><input class="form-input" type="number" id="jobBudget" placeholder="e.g. 25000"></div>
         <div class="form-group"><label class="form-label">Location <span>*</span></label><input class="form-input" id="jobLocation" placeholder="e.g. Ikeja, Lagos"></div>
       </div>
+      <div class="form-group">
+        <label class="form-label">Photos <span class="optional-tag">optional</span></label>
+        <div class="upload-area" onclick="document.getElementById('jobFileInput').click()">
+          <div class="upload-icon">📷</div>
+          <div class="upload-text"><strong>Click to add photos</strong> — e.g. the broken item, the space, a reference</div>
+        </div>
+        <input type="file" id="jobFileInput" accept="image/*" multiple style="display:none" onchange="handleJobFiles(this.files)">
+        <div id="jobThumbs" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"></div>
+      </div>
       <div class="error-text" id="postJobError"></div>
       <div style="background:var(--blue-50);border-radius:var(--radius-md);padding:14px;font-size:13px;color:var(--blue-700)" id="postJobNote">
         🔒 Simulated escrow: no real money moves yet. This just tracks job + payment status in the database.
@@ -407,21 +433,22 @@ footer .brand{color:white;font-weight:700;font-family:'Plus Jakarta Sans',sans-s
 </div>
 
 <div class="modal-overlay" id="jobDetailModal">
-  <div class="modal">
+  <div class="modal" style="max-width:600px">
     <div class="modal-header">
       <div><div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:1.3rem;font-weight:800" id="jdTitle">Job</div><div style="font-size:13px;color:var(--gray-500)" id="jdSub"></div></div>
       <button class="modal-close" onclick="closeModal('jobDetailModal')">✕</button>
     </div>
     <div class="modal-body">
+      <div id="jdPipeline" style="margin-bottom:20px"></div>
+      <div id="jdPhotos" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px"></div>
       <div style="background:var(--gray-50);border-radius:var(--radius-lg);padding:20px;margin-bottom:16px">
         <div style="font-size:13px;color:var(--gray-500);margin-bottom:4px">Description</div>
         <div style="font-size:14px" id="jdDescription">—</div>
       </div>
-      <div class="form-row" style="margin-bottom:16px">
+      <div class="form-row" style="margin-bottom:20px">
         <div><div style="font-size:12px;color:var(--gray-500)">Budget</div><div style="font-size:18px;font-weight:800" id="jdBudget">₦0</div></div>
         <div><div style="font-size:12px;color:var(--gray-500)">Location</div><div style="font-size:14px;font-weight:600" id="jdLocation">—</div></div>
       </div>
-      <div style="margin-bottom:16px"><span class="status-badge" id="jdStatusBadge" style="background:var(--gray-100);color:var(--gray-600)">Status</span></div>
       <div id="jdActions" style="display:flex;gap:10px;flex-wrap:wrap"></div>
       <div class="error-text" id="jdError"></div>
     </div>
@@ -1010,6 +1037,8 @@ async function loadPublicPortfolio(profileId,containerId){
 // ===================== JOBS & ESCROW =====================
 
 let targetArtisanId=null; // set when posting a job directly to a specific artisan
+let jobUploadedUrls=[];
+let jobUploadingCount=0;
 
 function openPostJobModal(artisanProfile){
   targetArtisanId=artisanProfile?artisanProfile.id:null;
@@ -1017,7 +1046,11 @@ function openPostJobModal(artisanProfile){
   document.getElementById('jobDescription').value='';
   document.getElementById('jobBudget').value='';
   document.getElementById('jobLocation').value=currentProfile?currentProfile.location:'';
+  document.getElementById('jobThumbs').innerHTML='';
+  document.getElementById('jobFileInput').value='';
   document.getElementById('postJobError').classList.remove('show');
+  jobUploadedUrls=[];
+  jobUploadingCount=0;
   if(artisanProfile){
     document.getElementById('postJobTitle').textContent='Post a Job to '+artisanProfile.first_name;
     document.getElementById('postJobSub').textContent='This job will go directly to them';
@@ -1028,6 +1061,43 @@ function openPostJobModal(artisanProfile){
   openModal('postJobModal');
 }
 
+async function handleJobFiles(fileList){
+  const files=Array.from(fileList);
+  if(files.length===0) return;
+
+  for(const file of files){
+    const thumbId='jobthumb_'+Math.random().toString(36).slice(2);
+    const thumbsEl=document.getElementById('jobThumbs');
+    const wrap=document.createElement('div');
+    wrap.className='pf-thumb';
+    wrap.id=thumbId;
+    wrap.innerHTML='<div class="pf-thumb-loading"><span class="spinner"></span></div>';
+    thumbsEl.appendChild(wrap);
+
+    jobUploadingCount++;
+    try{
+      const url=await uploadToCloudinary(file);
+      jobUploadedUrls.push(url);
+      const thumbEl=document.getElementById(thumbId);
+      if(thumbEl){
+        thumbEl.innerHTML=`<img src="${url}"><button class="pf-thumb-remove" onclick="removeJobThumb('${thumbId}','${url}')">✕</button>`;
+      }
+    }catch(e){
+      const thumbEl=document.getElementById(thumbId);
+      if(thumbEl) thumbEl.remove();
+      showToast('Upload failed for '+file.name+': '+e.message,true);
+    }finally{
+      jobUploadingCount--;
+    }
+  }
+}
+
+function removeJobThumb(thumbId,url){
+  jobUploadedUrls=jobUploadedUrls.filter(u=>u!==url);
+  const el=document.getElementById(thumbId);
+  if(el) el.remove();
+}
+
 async function submitJob(){
   if(!currentUser){showToast('Please log in first',true);return}
   const title=document.getElementById('jobTitle').value.trim();
@@ -1036,6 +1106,12 @@ async function submitJob(){
   const location=document.getElementById('jobLocation').value.trim();
   const errEl=document.getElementById('postJobError');
   errEl.classList.remove('show');
+
+  if(jobUploadingCount>0){
+    errEl.textContent='Please wait for photos to finish uploading.';
+    errEl.classList.add('show');
+    return;
+  }
 
   if(!title||!description||!budget||!location){
     errEl.textContent='Please fill in all fields.';
@@ -1051,6 +1127,7 @@ async function submitJob(){
     customer_id:currentUser.id,
     artisan_id:targetArtisanId,
     title,description,budget,location,
+    image_urls:jobUploadedUrls,
     status:targetArtisanId?'matched':'open'
   });
 
@@ -1077,6 +1154,7 @@ async function loadJobsTab(){
     .eq('customer_id',currentUser.id)
     .order('created_at',{ascending:false});
   renderJobRows('myPostedJobs',posted,postedErr,'customer');
+  document.getElementById('countPosted').textContent=posted?`(${posted.length})`:'';
 
   // Jobs assigned to me (as artisan)
   const{data:assigned,error:assignedErr}=await sb.from('jobs')
@@ -1084,6 +1162,7 @@ async function loadJobsTab(){
     .eq('artisan_id',currentUser.id)
     .order('created_at',{ascending:false});
   renderJobRows('myAssignedJobs',assigned,assignedErr,'artisan');
+  document.getElementById('countAssigned').textContent=assigned?`(${assigned.length})`:'';
 
   // Open jobs anyone can accept (exclude my own posted jobs)
   const{data:open,error:openErr}=await sb.from('jobs')
@@ -1092,6 +1171,7 @@ async function loadJobsTab(){
     .neq('customer_id',currentUser.id)
     .order('created_at',{ascending:false});
   renderJobRows('openJobsList',open,openErr,'open');
+  document.getElementById('countOpen').textContent=open?`(${open.length})`:'';
 
   const badge=document.getElementById('openJobsBadge');
   if(open&&open.length>0){badge.style.display='inline-block';badge.textContent=open.length}
@@ -1100,8 +1180,8 @@ async function loadJobsTab(){
 
 function statusLabel(status){
   const map={
-    open:{text:'Open — awaiting artisan',cls:'status-pending'},
-    matched:{text:'Matched — awaiting escrow',cls:'status-pending'},
+    open:{text:'Open — awaiting interest',cls:'status-pending'},
+    matched:{text:'Hired — awaiting escrow',cls:'status-pending'},
     in_escrow:{text:'🔒 In Escrow',cls:'status-escrow'},
     in_progress:{text:'In Progress',cls:'status-active'},
     completed:{text:'✓ Completed',cls:'status-completed'},
@@ -1111,11 +1191,40 @@ function statusLabel(status){
   return map[status]||{text:status,cls:'status-pending'};
 }
 
+// Visual pipeline: Posted -> Hired -> Escrow Funded -> Completed
+function renderPipeline(status){
+  const stages=[
+    {key:'open',label:'Posted'},
+    {key:'matched',label:'Hired'},
+    {key:'in_escrow',label:'Escrow Funded'},
+    {key:'completed',label:'Completed'}
+  ];
+  const order=['open','matched','in_escrow','completed'];
+  const isDisputed=status==='disputed';
+  const currentIndex=isDisputed?2:order.indexOf(status); // disputed shows at escrow stage, flagged
+
+  const html=stages.map((s,i)=>{
+    let cls='';
+    if(isDisputed&&i===2) cls='cancelled';
+    else if(i<currentIndex) cls='done';
+    else if(i===currentIndex) cls='active';
+    const label=(isDisputed&&i===2)?'Disputed':s.label;
+    return `<div class="jd-pipe-step ${cls}"><div class="jd-pipe-line"></div><div class="jd-pipe-dot">${cls==='done'?'✓':i+1}</div><div class="jd-pipe-label">${label}</div></div>`;
+  }).join('');
+
+  return `<div class="jd-pipeline">${html}</div>`;
+}
+
 function renderJobRows(containerId,jobs,error,context){
   const el=document.getElementById(containerId);
   if(error){el.innerHTML='<div class="empty-state">Error: '+error.message+'</div>';return}
   if(!jobs||jobs.length===0){
-    el.innerHTML='<div class="empty-state" style="padding:32px">No jobs here yet.</div>';
+    const emptyMsgs={
+      customer:'You haven\u2019t posted any jobs yet. Click "+ Post a Job" to get started.',
+      artisan:'No jobs assigned to you yet. Apply to an open job below, or wait for a hirer to invite you directly.',
+      open:'No open jobs right now. Check back soon!'
+    };
+    el.innerHTML='<div class="empty-state" style="padding:32px">'+(emptyMsgs[context]||'No jobs here yet.')+'</div>';
     return;
   }
   el.innerHTML=jobs.map(j=>{
@@ -1123,8 +1232,9 @@ function renderJobRows(containerId,jobs,error,context){
     const otherParty=context==='customer'?(j.artisan?j.artisan.first_name+' '+j.artisan.last_name:'Unassigned'):
                       context==='artisan'?(j.customer.first_name+' '+j.customer.last_name):
                       (j.customer.first_name+' '+j.customer.last_name);
+    const thumb=(j.image_urls&&j.image_urls[0])?`<img src="${j.image_urls[0]}" style="width:40px;height:40px;border-radius:8px;object-fit:cover;margin-right:10px">`:'';
     return `<div class="job-row" onclick='openJobDetail(${JSON.stringify(j).replace(/'/g,"&apos;")})'>
-      <div><div class="job-title">${j.title}</div><div class="job-sub">${otherParty} · ${j.location}</div></div>
+      <div style="display:flex;align-items:center">${thumb}<div><div class="job-title">${j.title}</div><div class="job-sub">${otherParty} · ${j.location}</div></div></div>
       <div><div class="job-amount">₦${Number(j.budget).toLocaleString()}</div></div>
       <div><span class="status-badge ${s.cls}">${s.text}</span></div>
       <div>→</div>
@@ -1142,10 +1252,14 @@ async function openJobDetail(job){
   document.getElementById('jdBudget').textContent='₦'+Number(job.budget).toLocaleString();
   document.getElementById('jdLocation').textContent=job.location;
   document.getElementById('jdError').classList.remove('show');
-  const s=statusLabel(job.status);
-  const badge=document.getElementById('jdStatusBadge');
-  badge.textContent=s.text;
-  badge.className='status-badge '+s.cls;
+  document.getElementById('jdPipeline').innerHTML=renderPipeline(job.status);
+
+  const photosEl=document.getElementById('jdPhotos');
+  if(job.image_urls&&job.image_urls.length>0){
+    photosEl.innerHTML=job.image_urls.map(url=>`<div class="jd-photo-thumb" onclick="window.open('${url}','_blank')"><img src="${url}"></div>`).join('');
+  }else{
+    photosEl.innerHTML='';
+  }
 
   const actions=document.getElementById('jdActions');
   actions.innerHTML='<div class="empty-state" style="padding:12px">Loading…</div>';
