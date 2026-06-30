@@ -139,6 +139,13 @@ nav{position:sticky;top:0;z-index:100;background:rgba(255,255,255,.95);backdrop-
 @keyframes spin{to{transform:rotate(360deg)}}
 .skip-link{display:block;text-align:center;margin-top:14px;font-size:13px;color:var(--gray-500);cursor:pointer;text-decoration:underline}
 .empty-state{padding:60px;text-align:center;color:var(--gray-400)}
+.notif-row{padding:12px 16px;border-bottom:1px solid var(--gray-100);cursor:pointer;transition:background .15s}
+.notif-row:hover{background:var(--gray-50)}
+.notif-row.unread{background:var(--blue-50)}
+.notif-row:last-child{border-bottom:none}
+.notif-title{font-size:13px;font-weight:700;color:var(--gray-900)}
+.notif-body{font-size:12px;color:var(--gray-500);margin-top:2px}
+.notif-time{font-size:11px;color:var(--gray-400);margin-top:4px}
 .pf-thumb{position:relative;width:64px;height:64px;border-radius:var(--radius-md);overflow:hidden;background:var(--gray-100)}
 .pf-thumb img{width:100%;height:100%;object-fit:cover;display:block}
 .pf-thumb-remove{position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.6);color:white;border:none;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center}
@@ -172,9 +179,22 @@ footer .brand{color:white;font-weight:700;font-family:'Plus Jakarta Sans',sans-s
     <li><a href="#" onclick="goTo('home');return false">Home</a></li>
     <li><a href="#" onclick="goTo('marketplace');return false">Find Skill Workers</a></li>
   </ul>
-  <div class="nav-actions" id="navActions">
-    <button class="btn btn-ghost" onclick="openModal('loginModal')">Log in</button>
-    <button class="btn btn-primary" onclick="openModal('registerModal')">Get Started</button>
+  <div style="display:flex;align-items:center;gap:14px">
+    <div id="notifBell" style="position:relative;display:none;cursor:pointer" onclick="toggleNotifPanel()">
+      <span style="font-size:20px">🔔</span>
+      <span id="notifBadge" style="position:absolute;top:-4px;right:-6px;background:var(--coral);color:white;font-size:10px;font-weight:700;min-width:16px;height:16px;border-radius:999px;display:none;align-items:center;justify-content:center;padding:0 4px">0</span>
+      <div id="notifPanel" style="display:none;position:absolute;top:36px;right:0;width:340px;max-height:420px;overflow-y:auto;background:white;border:1px solid var(--gray-200);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);z-index:300">
+        <div style="padding:14px 16px;border-bottom:1px solid var(--gray-100);display:flex;justify-content:space-between;align-items:center">
+          <strong style="font-size:14px">Notifications</strong>
+          <span style="font-size:12px;color:var(--blue-600);cursor:pointer" onclick="event.stopPropagation();markAllNotifsRead()">Mark all read</span>
+        </div>
+        <div id="notifList"></div>
+      </div>
+    </div>
+    <div class="nav-actions" id="navActions">
+      <button class="btn btn-ghost" onclick="openModal('loginModal')">Log in</button>
+      <button class="btn btn-primary" onclick="openModal('registerModal')">Get Started</button>
+    </div>
   </div>
 </nav>
 
@@ -486,11 +506,19 @@ footer .brand{color:white;font-weight:700;font-family:'Plus Jakarta Sans',sans-s
 <div class="modal-overlay" id="viewPortfolioModal">
   <div class="modal" style="max-width:700px">
     <div class="modal-header">
-      <div><div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:1.3rem;font-weight:800" id="vpName">Portfolio</div></div>
+      <div>
+        <div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:1.3rem;font-weight:800" id="vpName">Profile</div>
+        <div style="font-size:13px;color:var(--gray-500);margin-top:2px" id="vpRatingSummary">No reviews yet</div>
+      </div>
       <button class="modal-close" onclick="closeModal('viewPortfolioModal')">✕</button>
     </div>
     <div class="modal-body">
+      <div class="tab-bar">
+        <div class="tab-item active" id="vpTabPortfolio" onclick="switchVpTab('portfolio')">🖼️ Portfolio</div>
+        <div class="tab-item" id="vpTabReviews" onclick="switchVpTab('reviews')">⭐ Reviews</div>
+      </div>
       <div id="vpGrid" class="artisans-grid"></div>
+      <div id="vpReviews" style="display:none"></div>
     </div>
   </div>
 </div>
@@ -607,11 +635,24 @@ function artisanCardHTML(p){
   </div>`;
 }
 
+let vpCurrentProfileId=null;
+
 function viewPortfolio(profile){
-  document.getElementById('vpName').textContent=profile.first_name+"'s Portfolio";
+  vpCurrentProfileId=profile.id;
+  document.getElementById('vpName').textContent=profile.first_name+' '+profile.last_name;
   document.getElementById('vpGrid').innerHTML='<div class="empty-state" style="grid-column:1/-1">Loading…</div>';
+  document.getElementById('vpRatingSummary').textContent='Loading…';
+  switchVpTab('portfolio');
   openModal('viewPortfolioModal');
   loadPublicPortfolio(profile.id,'vpGrid');
+  loadReviewsForProfile(profile.id,'vpReviews','vpRatingSummary');
+}
+
+function switchVpTab(tab){
+  document.getElementById('vpTabPortfolio').classList.toggle('active',tab==='portfolio');
+  document.getElementById('vpTabReviews').classList.toggle('active',tab==='reviews');
+  document.getElementById('vpGrid').style.display=tab==='portfolio'?'grid':'none';
+  document.getElementById('vpReviews').style.display=tab==='reviews'?'block':'none';
 }
 
 function hireFromCard(profile){
@@ -1280,7 +1321,11 @@ async function openJobDetail(job){
   }else if(isArtisan&&job.status==='in_escrow'){
     actions.innerHTML=`<div style="font-size:13px;color:var(--gray-500)">Payment is held in escrow. Complete the job — the customer will release payment once satisfied.</div>`;
   }else if(job.status==='completed'){
-    actions.innerHTML=`<div style="font-size:13px;color:var(--teal);font-weight:600">✓ This job is complete and payment has been released.</div>`;
+    if(isCustomer){
+      await renderReviewUI(job);
+    }else{
+      actions.innerHTML=`<div style="font-size:13px;color:var(--teal);font-weight:600">✓ This job is complete and payment has been released.</div>`;
+    }
   }else if(job.status==='disputed'){
     actions.innerHTML=`<div style="font-size:13px;color:var(--coral);font-weight:600">⚠ This job is under dispute review.</div>`;
   }else{
@@ -1328,6 +1373,14 @@ async function expressInterest(jobId){
     document.getElementById('jdError').classList.add('show');
     return;
   }
+
+  // Notify the hirer
+  const{data:job}=await sb.from('jobs').select('customer_id,title').eq('id',jobId).maybeSingle();
+  if(job){
+    createNotification(job.customer_id,'new_application','New interest in your job',
+      currentProfile.first_name+' '+currentProfile.last_name+' is interested in "'+job.title+'"',jobId);
+  }
+
   closeModal('jobDetailModal');
   showToast('✅ Interest sent! The hirer will review and select a skill worker.');
   loadJobsTab();
@@ -1383,6 +1436,12 @@ async function selectApplicant(jobId,applicationId,applicantId){
   await sb.from('job_applications').update({status:'selected'}).eq('id',applicationId);
   await sb.from('job_applications').update({status:'rejected'}).eq('job_id',jobId).neq('id',applicationId);
 
+  const{data:job}=await sb.from('jobs').select('title').eq('id',jobId).maybeSingle();
+  if(job){
+    createNotification(applicantId,'selected','You were selected!',
+      'You were chosen for the job "'+job.title+'". Waiting on the hirer to fund escrow.',jobId);
+  }
+
   closeModal('jobDetailModal');
   showToast('✅ Skill worker selected! Fund escrow to get started.');
   loadJobsTab();
@@ -1391,6 +1450,13 @@ async function selectApplicant(jobId,applicationId,applicantId){
 async function acceptJob(jobId){
   const{error}=await sb.from('jobs').update({artisan_id:currentUser.id,status:'matched'}).eq('id',jobId);
   if(error){showToast('Could not accept job: '+error.message,true);return}
+
+  const{data:job}=await sb.from('jobs').select('customer_id,title').eq('id',jobId).maybeSingle();
+  if(job){
+    createNotification(job.customer_id,'selected','Your job was accepted',
+      currentProfile.first_name+' '+currentProfile.last_name+' accepted "'+job.title+'"',jobId);
+  }
+
   closeModal('jobDetailModal');
   showToast('✅ Job accepted! Waiting for customer to fund escrow.');
   loadJobsTab();
@@ -1403,6 +1469,13 @@ async function fundEscrow(jobId,budget){
   if(escrowErr){showToast('Could not fund escrow: '+escrowErr.message,true);return}
   const{error:jobErr}=await sb.from('jobs').update({status:'in_escrow'}).eq('id',jobId);
   if(jobErr){showToast('Escrow funded but job status update failed: '+jobErr.message,true);return}
+
+  const{data:job}=await sb.from('jobs').select('artisan_id,title').eq('id',jobId).maybeSingle();
+  if(job&&job.artisan_id){
+    createNotification(job.artisan_id,'escrow_funded','Escrow funded — get started!',
+      'Payment of ₦'+Number(budget).toLocaleString()+' is held in escrow for "'+job.title+'". You can start work.',jobId);
+  }
+
   closeModal('jobDetailModal');
   showToast('🔒 Escrow funded (simulated) — ₦'+Number(budget).toLocaleString()+' held.');
   loadJobsTab();
@@ -1413,6 +1486,13 @@ async function releaseEscrow(jobId){
   if(escrowErr){showToast('Could not release escrow: '+escrowErr.message,true);return}
   const{error:jobErr}=await sb.from('jobs').update({status:'completed'}).eq('id',jobId);
   if(jobErr){showToast('Released but job status update failed: '+jobErr.message,true);return}
+
+  const{data:job}=await sb.from('jobs').select('artisan_id,title,budget').eq('id',jobId).maybeSingle();
+  if(job&&job.artisan_id){
+    createNotification(job.artisan_id,'escrow_released','💸 Payment released!',
+      '₦'+Number(job.budget).toLocaleString()+' was released for "'+job.title+'". Job marked complete.',jobId);
+  }
+
   closeModal('jobDetailModal');
   showToast('💸 Payment released! Job marked complete.');
   loadJobsTab();
@@ -1421,9 +1501,129 @@ async function releaseEscrow(jobId){
 async function disputeJob(jobId){
   const{error}=await sb.from('jobs').update({status:'disputed'}).eq('id',jobId);
   if(error){showToast('Could not raise dispute: '+error.message,true);return}
+
+  const{data:job}=await sb.from('jobs').select('artisan_id,title').eq('id',jobId).maybeSingle();
+  if(job&&job.artisan_id){
+    createNotification(job.artisan_id,'dispute','⚠ A dispute was raised',
+      'The hirer raised a dispute on "'+job.title+'". Our team will review within 48 hours.',jobId);
+  }
+
   closeModal('jobDetailModal');
   showToast('⚠ Dispute raised. Our team will review within 48 hours.');
   loadJobsTab();
+}
+
+// ===================== REVIEWS =====================
+
+let selectedRating=0;
+
+async function renderReviewUI(job){
+  const actions=document.getElementById('jdActions');
+  const{data:existing}=await sb.from('reviews').select('*').eq('job_id',job.id).maybeSingle();
+
+  if(existing){
+    actions.innerHTML=`<div style="width:100%">
+      <div style="font-size:13px;color:var(--teal);font-weight:600;margin-bottom:10px">✓ Job complete — you reviewed this skill worker</div>
+      <div class="review-stars">${'★'.repeat(existing.rating)}${'☆'.repeat(5-existing.rating)}</div>
+      ${existing.comment?`<div class="review-text" style="margin-top:6px">${existing.comment}</div>`:''}
+    </div>`;
+    return;
+  }
+
+  selectedRating=0;
+  actions.innerHTML=`<div style="width:100%">
+    <div style="font-size:13px;color:var(--teal);font-weight:600;margin-bottom:14px">✓ This job is complete and payment has been released.</div>
+    <div style="font-size:13px;font-weight:600;color:var(--gray-700);margin-bottom:8px">Rate this skill worker</div>
+    <div id="starPicker" style="font-size:28px;color:var(--gray-300);cursor:pointer;margin-bottom:12px;letter-spacing:4px">★★★★★</div>
+    <textarea class="form-textarea" id="reviewComment" rows="2" style="resize:vertical;margin-bottom:10px" placeholder="Optional comment about their work..."></textarea>
+    <button class="btn btn-primary" onclick="submitReview('${job.id}','${job.artisan_id}')" id="reviewSubmitBtn">Submit Review</button>
+  </div>`;
+  setupStarPicker();
+}
+
+function setupStarPicker(){
+  const el=document.getElementById('starPicker');
+  el.onmousemove=(e)=>{
+    const rect=el.getBoundingClientRect();
+    const pct=(e.clientX-rect.left)/rect.width;
+    const hoverRating=Math.ceil(pct*5);
+    paintStars(hoverRating);
+  };
+  el.onmouseleave=()=>paintStars(selectedRating);
+  el.onclick=(e)=>{
+    const rect=el.getBoundingClientRect();
+    const pct=(e.clientX-rect.left)/rect.width;
+    selectedRating=Math.max(1,Math.min(5,Math.ceil(pct*5)));
+    paintStars(selectedRating);
+  };
+}
+
+function paintStars(n){
+  const el=document.getElementById('starPicker');
+  if(!el) return;
+  el.innerHTML=`<span style="color:var(--gold)">${'★'.repeat(n)}</span><span style="color:var(--gray-300)">${'★'.repeat(5-n)}</span>`;
+}
+
+async function submitReview(jobId,artisanId){
+  if(selectedRating===0){
+    showToast('Please select a star rating first',true);
+    return;
+  }
+  const comment=document.getElementById('reviewComment').value.trim();
+  const btn=document.getElementById('reviewSubmitBtn');
+  btn.disabled=true;
+  btn.innerHTML='<span class="spinner"></span> Submitting...';
+
+  const{error}=await sb.from('reviews').insert({
+    job_id:jobId,reviewer_id:currentUser.id,artisan_id:artisanId,
+    rating:selectedRating,comment:comment||null
+  });
+
+  btn.disabled=false;
+  btn.textContent='Submit Review';
+
+  if(error){
+    showToast('Could not submit review: '+error.message,true);
+    return;
+  }
+
+  createNotification(artisanId,'review_received','⭐ You got a new review',
+    'You received a '+selectedRating+'-star review from '+currentProfile.first_name,jobId);
+
+  closeModal('jobDetailModal');
+  showToast('⭐ Review submitted — thank you!');
+  loadJobsTab();
+}
+
+async function loadReviewsForProfile(profileId,containerId,summaryId){
+  const{data,error}=await sb.from('reviews')
+    .select('*, reviewer:reviewer_id(first_name,last_name)')
+    .eq('artisan_id',profileId)
+    .order('created_at',{ascending:false});
+
+  const el=document.getElementById(containerId);
+  if(error){el.innerHTML='<div class="empty-state">Could not load reviews.</div>';return}
+  if(!data||data.length===0){
+    el.innerHTML='<div class="empty-state" style="padding:24px">No reviews yet.</div>';
+    if(summaryId) document.getElementById(summaryId).textContent='No reviews yet';
+    return;
+  }
+
+  const avg=(data.reduce((sum,r)=>sum+r.rating,0)/data.length).toFixed(1);
+  if(summaryId){
+    document.getElementById(summaryId).innerHTML=`<span class="star">★</span> ${avg} <span style="color:var(--gray-400);font-weight:400">(${data.length} review${data.length>1?'s':''})</span>`;
+  }
+
+  el.innerHTML=data.map(r=>`
+    <div class="review-card">
+      <div class="review-header">
+        <div class="reviewer-name">${r.reviewer?r.reviewer.first_name+' '+r.reviewer.last_name:'Anonymous'}</div>
+        <div class="review-date">${new Date(r.created_at).toLocaleDateString('en-GB',{month:'short',day:'numeric',year:'numeric'})}</div>
+      </div>
+      <div class="review-stars">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</div>
+      ${r.comment?`<div class="review-text">${r.comment}</div>`:''}
+    </div>
+  `).join('');
 }
 
 async function renderOnboardSkills(){
@@ -1488,10 +1688,108 @@ async function saveOnboardSkills(){
 sb.auth.onAuthStateChange((event,session)=>{
   if(session){
     document.getElementById('navActions').innerHTML='<button class="btn btn-primary" onclick="goTo(\'dashboard\')">My Dashboard</button>';
+    document.getElementById('notifBell').style.display='block';
+    loadNotifications();
+    if(notifPollInterval) clearInterval(notifPollInterval);
+    notifPollInterval=setInterval(loadNotifications,20000);
   }else{
     document.getElementById('navActions').innerHTML='<button class="btn btn-ghost" onclick="openModal(\'loginModal\')">Log in</button><button class="btn btn-primary" onclick="openModal(\'registerModal\')">Get Started</button>';
+    document.getElementById('notifBell').style.display='none';
+    if(notifPollInterval) clearInterval(notifPollInterval);
   }
 });
+
+// ===================== NOTIFICATIONS =====================
+
+let notifPollInterval=null;
+
+async function createNotification(profileId,type,title,body,jobId){
+  // Fire-and-forget — a failed notification should never block the main action
+  try{
+    await sb.from('notifications').insert({profile_id:profileId,type,title,body,job_id:jobId||null});
+  }catch(e){
+    console.error('Notification creation failed:',e);
+  }
+}
+
+async function loadNotifications(){
+  if(!currentUser) return;
+  const{data,error}=await sb.from('notifications')
+    .select('*')
+    .eq('profile_id',currentUser.id)
+    .order('created_at',{ascending:false})
+    .limit(30);
+
+  if(error){console.error('loadNotifications error:',error);return}
+
+  const unreadCount=(data||[]).filter(n=>!n.is_read).length;
+  const badge=document.getElementById('notifBadge');
+  if(unreadCount>0){
+    badge.style.display='flex';
+    badge.textContent=unreadCount>9?'9+':unreadCount;
+  }else{
+    badge.style.display='none';
+  }
+
+  const list=document.getElementById('notifList');
+  if(!data||data.length===0){
+    list.innerHTML='<div class="empty-state" style="padding:32px">No notifications yet.</div>';
+    return;
+  }
+
+  list.innerHTML=data.map(n=>`
+    <div class="notif-row ${n.is_read?'':'unread'}" onclick='handleNotifClick("${n.id}",${n.job_id?`"${n.job_id}"`:'null'})'>
+      <div class="notif-title">${n.title}</div>
+      ${n.body?`<div class="notif-body">${n.body}</div>`:''}
+      <div class="notif-time">${timeAgo(n.created_at)}</div>
+    </div>
+  `).join('');
+}
+
+function timeAgo(dateStr){
+  const seconds=Math.floor((new Date()-new Date(dateStr))/1000);
+  if(seconds<60) return 'Just now';
+  const minutes=Math.floor(seconds/60);
+  if(minutes<60) return minutes+'m ago';
+  const hours=Math.floor(minutes/60);
+  if(hours<24) return hours+'h ago';
+  const days=Math.floor(hours/24);
+  if(days<7) return days+'d ago';
+  return new Date(dateStr).toLocaleDateString('en-GB',{month:'short',day:'numeric'});
+}
+
+function toggleNotifPanel(){
+  const panel=document.getElementById('notifPanel');
+  const isOpen=panel.style.display==='block';
+  panel.style.display=isOpen?'none':'block';
+  if(!isOpen) loadNotifications();
+}
+
+document.addEventListener('click',(e)=>{
+  const bell=document.getElementById('notifBell');
+  if(bell&&!bell.contains(e.target)){
+    document.getElementById('notifPanel').style.display='none';
+  }
+});
+
+async function markAllNotifsRead(){
+  if(!currentUser) return;
+  await sb.from('notifications').update({is_read:true}).eq('profile_id',currentUser.id).eq('is_read',false);
+  loadNotifications();
+}
+
+async function handleNotifClick(notifId,jobId){
+  await sb.from('notifications').update({is_read:true}).eq('id',notifId);
+  document.getElementById('notifPanel').style.display='none';
+  loadNotifications();
+  if(jobId){
+    goTo('dashboard');
+    const{data:job}=await sb.from('jobs').select('*').eq('id',jobId).maybeSingle();
+    if(job) openJobDetail(job);
+    document.querySelectorAll('.dash-tab').forEach(t=>t.style.display='none');
+    document.getElementById('dash-jobs').style.display='block';
+  }
+}
 
 testConnection();
 </script>
